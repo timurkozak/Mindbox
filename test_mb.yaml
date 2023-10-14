@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-app-deployment
+  labels:
+    app: my-app
+spec:
+  replicas: 4 # 4 пода для справления с пиковой нагрузкой
+  selector:
+    matchLabels:
+      app: my-app
+  template:
+    metadata:
+      labels:
+        app: my-app
+    spec:
+      containers:
+        - name: my-app
+          image: my-app-image:latest
+          resources:
+            requests:
+              cpu: "2" # Запрашиваем больше CPU на старте
+              memory: "128Mi"
+            limits:
+              cpu: "2" # Устанавливаем лимиты
+              memory: "128Mi"
+          readinessProbe:
+            httpGet:
+              path: /healthz # Путь для проверки готовности
+              port: 80
+            initialDelaySeconds: 10 # Инициализацию ждем 10 секунд
+            periodSeconds: 5 # Проверяем готовность каждые 5 секунд
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 120 # Первая проверка через 120 секунд (ждем окончания инициализации)
+            periodSeconds: 30 # Проверка живости каждые 30 секунд
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                - key: topology.kubernetes.io/zone
+                  operator: In
+                  values:
+                    - zone1
+                    - zone2
+                    - zone3
+      nodeSelector:
+        custom-label: my-app-node # Помечаем узлы для развертывания
+  strategy:
+    type: RollingUpdate # Используем стратегию обновления
+    rollingUpdate:
+      maxUnavailable: 25% # Разрешаем отключить до 25% подов во время обновления
+  autoscaling:
+    enabled: true # Включаем горизонтальное автомасштабирование
+    minReplicas: 4 # Минимальное количество реплик
+    maxReplicas: 10 # Максимальное количество реплик
+    targetCPUUtilizationPercentage: 50 # Пороговое значение CPU для автомасштабирования
